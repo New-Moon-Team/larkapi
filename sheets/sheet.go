@@ -8,6 +8,8 @@ import (
 	models "larkapi/models/cell"
 	"net/http"
 	"reflect"
+
+	"github.com/go-faster/errors"
 )
 
 func (sh Sheet) GetAllRaw() ([][]any, error) {
@@ -163,9 +165,30 @@ func (sh Sheet) GetAll(result interface{}) error {
 
 				// If the sheet tag matches the header, set the struct field value
 				if sheetTag == headers[cellIndex] {
-					// Convert the cell value to the type of the struct field
-					convertedCellValue := reflect.ValueOf(cellValue).Convert(structField.Type)
-					newElement.Field(fieldIndex).Set(convertedCellValue)
+					var err error
+					func() {
+						defer func() {
+							r := recover()
+							if r != nil {
+								err = fmt.Errorf("%v", r)
+							}
+						}()
+						// Check the type of the struct field
+						if structField.Type.Kind() == reflect.String {
+							if reflect.ValueOf(cellValue).Kind() == reflect.Float64 {
+								// Convert the float64 to a string if the struct field is a string
+								cellValue = fmt.Sprintf("%.0f", cellValue)
+							} else {
+								cellValue = fmt.Sprintf("%v", cellValue)
+							}
+						}
+						// Convert the cell value to the type of the struct field
+						convertedCellValue := reflect.ValueOf(cellValue).Convert(structField.Type)
+						newElement.Field(fieldIndex).Set(convertedCellValue)
+					}()
+					if err != nil {
+						return errors.Wrap(err, fmt.Sprintf("convert value for field: %s", sheetTag))
+					}
 				}
 
 				// If the sheet tag is "_index", set the row index as the value
