@@ -1,4 +1,4 @@
-module larkapi
+module github.com/New-Moon-Team/larkapi
 
 go 1.22.1
 
